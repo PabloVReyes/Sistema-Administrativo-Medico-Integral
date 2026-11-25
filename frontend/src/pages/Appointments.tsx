@@ -1,196 +1,205 @@
-import { useState } from "react";
-import { appointments } from "../data/mock";
-import { IcPlus, IcChevronRight } from "../components/Icons";
+import { useState, useEffect } from "react";
+import { IcSearch, IcPlus, IcEdit, IcTrash, IcCalendar, IcEye, IcFilter } from "../components/Icons";
+import { getAppointmentsApi, createAppointmentApi, updateAppointmentApi } from "../services/api";
 
-const DAYS = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+interface AppointmentsProps {
+  onNewPatient: () => void;
+  onViewRecord: () => void;
+}
 
-function StatusBadge({ estado }: { estado: string }) {
+function EstadoCitaBadge({ estado }: { estado: string }) {
   const map: Record<string, string> = {
+    "Pendiente": "badge-warning",
     "Confirmada": "badge-success",
     "Atendida": "badge-info",
-    "Pendiente": "badge-warning",
     "Cancelada": "badge-danger",
   };
   return <span className={`badge ${map[estado] || "badge-muted"}`}>{estado}</span>;
 }
 
-function buildCalendar(year: number, month: number) {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells = [];
-  for (let i = 0; i < firstDay; i++) cells.push({ day: 0, otherMonth: true });
-  for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, otherMonth: false });
-  while (cells.length % 7 !== 0) cells.push({ day: 0, otherMonth: true });
-  return cells;
-}
-
-export default function Appointments() {
-  const [view, setView] = useState<"mensual" | "semanal" | "diaria">("mensual");
-  const [month, setMonth] = useState(8); // September (0-indexed)
-  const [year] = useState(2026);
+export default function Appointments({ onNewPatient, onViewRecord }: AppointmentsProps) {
+  // FILTROS PRIMEROS - los hooks de React deben estar en orden consistente
   const [filterMedico, setFilterMedico] = useState("");
   const [filterArea, setFilterArea] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
-  const [showModal, setShowModal] = useState(false);
 
-  const calCells = buildCalendar(year, month);
-  const today = 8;
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [deleteModal, setDeleteModal] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const apptDays = new Set(appointments.map(() => today));
+  // 1. Cargar citas del API (o datos mock si no hay token)
+  useEffect(() => {
+    const token = localStorage.getItem("sami_token");
+    if (token) {
+      fetch("http://localhost:3000/api/appointments", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          console.log("Respuesta API citas:", data);
+          if (data && data.success && data.data && Array.isArray(data.data)) {
+            setAppointments(data.data);
+          } else {
+            // Fallback a datos mock si la API no devuelve datos esperados
+            const mockAppointments = [
+              { id: "C-001", paciente: "María González Pérez", medico: "Dr. Hernández", fecha: "2024-01-15", hora: "09:00", area: "Medicina General", estado: "Confirmada" },
+              { id: "C-002", paciente: "Juan Rodríguez López", medico: "Dr. Martínez", fecha: "2024-01-15", hora: "10:30", area: "Pediatría", estado: "Pendiente" },
+              { id: "C-003", paciente: "Carlos Martínez", medico: "Dr. López", fecha: "2024-01-15", hora: "11:00", area: "Ginecología", estado: "Confirmada" },
+              { id: "C-004", paciente: "Laura Sánchez", medico: "Dr. Hernández", fecha: "2024-01-16", hora: "08:00", area: "Medicina General", estado: "Pendiente" },
+              { id: "C-005", paciente: "Pedro Gómez", medico: "Dr. Martínez", fecha: "2024-01-16", hora: "14:30", area: "Pediatría", estado: "Confirmada" },
+            ];
+            setAppointments(mockAppointments);
+          }
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.error("Error cargando citas:", error);
+          // Fallback a datos mock en caso de error
+          const mockAppointments = [
+            { id: "C-001", paciente: "María González Pérez", medico: "Dr. Hernández", fecha: "2024-01-15", hora: "09:00", area: "Medicina General", estado: "Confirmada" },
+            { id: "C-002", paciente: "Juan Rodríguez López", medico: "Dr. Martínez", fecha: "2024-01-15", hora: "10:30", area: "Pediatría", estado: "Pendiente" },
+          ];
+          setAppointments(mockAppointments);
+          setLoading(false);
+        });
+    } else {
+      // Sin token: cargar datos mock inmediatamente
+      const mockAppointments = [
+        { id: "C-001", paciente: "María González Pérez", medico: "Dr. Hernández", fecha: "2024-01-15", hora: "09:00", area: "Medicina General", estado: "Confirmada" },
+        { id: "C-002", paciente: "Juan Rodríguez López", medico: "Dr. Martínez", fecha: "2024-01-15", hora: "10:30", area: "Pediatría", estado: "Pendiente" },
+        { id: "C-003", paciente: "Carlos Martínez", medico: "Dr. López", fecha: "2024-01-15", hora: "11:00", area: "Ginecología", estado: "Confirmada" },
+        { id: "C-004", paciente: "Laura Sánchez", medico: "Dr. Hernández", fecha: "2024-01-16", hora: "08:00", area: "Medicina General", estado: "Pendiente" },
+        { id: "C-005", paciente: "Pedro Gómez", medico: "Dr. Martínez", fecha: "2024-01-16", hora: "14:30", area: "Pediatría", estado: "Confirmada" },
+      ];
+      setAppointments(mockAppointments);
+      setLoading(false);
+    }
+  }, []);
 
-  const filtered = appointments.filter(a =>
-    (!filterMedico || a.medico.includes(filterMedico)) &&
-    (!filterArea || a.area === filterArea) &&
-    (!filterEstado || a.estado === filterEstado)
-  );
+  // 2. Computar citas filtradas DESPUÉS de tener los estados de filtro
+  const filtered = appointments.filter(a => {
+    const q = search.toLowerCase();
+    return (
+      (a.paciente.toLowerCase().includes(q) || a.id.toLowerCase().includes(q)) &&
+      (!filterMedico || a.medico.toLowerCase().includes(filterMedico.toLowerCase())) &&
+      (!filterArea || a.area.toLowerCase().includes(filterArea.toLowerCase())) &&
+      (!filterEstado || a.estado === filterEstado)
+    );
+  });
 
   return (
     <div>
       <div className="section-header">
         <div>
-          <h1 className="page-title">Citas médicas</h1>
-          <p className="page-subtitle">Agenda y programación de consultas</p>
+          <h1 className="page-title">Citas Médicas</h1>
+          <p className="page-subtitle">{appointments.length} citas en el sistema</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {(["mensual","semanal","diaria"] as const).map(v => (
-            <button key={v} className={`btn ${view === v ? "btn-primary" : "btn-outline"}`}
-              style={{ textTransform: "capitalize" }} onClick={() => setView(v)}>
-              {v.charAt(0).toUpperCase() + v.slice(1)}
-            </button>
-          ))}
-          <button className="btn btn-secondary" onClick={() => setShowModal(true)}>
-            <IcPlus size={13} /> Nueva cita
-          </button>
-        </div>
+        <button className="btn btn-primary" onClick={onNewPatient}>
+          <IcPlus /> Nueva cita
+        </button>
       </div>
 
-      {/* Filters */}
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <span style={{ fontSize: 12.5, color: "var(--text-muted)", fontWeight: 600 }}>Filtros:</span>
-          <select className="form-select" style={{ width: 200 }} value={filterMedico} onChange={e => setFilterMedico(e.target.value)}>
-            <option value="">Todos los médicos</option>
-            {[...new Set(appointments.map(a => a.medico))].map(m => (
-              <option key={m} value={m}>{m}</option>
-            ))}
-          </select>
-          <select className="form-select" style={{ width: 180 }} value={filterArea} onChange={e => setFilterArea(e.target.value)}>
-            <option value="">Todas las áreas</option>
-            {[...new Set(appointments.map(a => a.area))].map(a => (
-              <option key={a} value={a}>{a}</option>
-            ))}
-          </select>
-          <select className="form-select" style={{ width: 160 }} value={filterEstado} onChange={e => setFilterEstado(e.target.value)}>
-            <option value="">Todos los estados</option>
-            {["Confirmada","Pendiente","Atendida","Cancelada"].map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-            <button className="btn btn-outline btn-sm" onClick={() => setMonth(m => Math.max(0, m - 1))}>‹</button>
-            <span style={{ fontWeight: 600, fontSize: 13.5, minWidth: 140, textAlign: "center" }}>
-              {MONTHS[month]} {year}
-            </span>
-            <button className="btn btn-outline btn-sm" onClick={() => setMonth(m => Math.min(11, m + 1))}>›</button>
+      <div className="card">
+        {/* Toolbar */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+          <div className="search-bar">
+            <IcSearch />
+            <input
+              className="search-input"
+              placeholder="Buscar por paciente, médico o ID..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 16 }}>
-        {/* Calendar */}
-        <div className="card">
-          <div className="cal-grid">
-            {DAYS.map(d => (
-              <div key={d} className="cal-day-header">{d}</div>
-            ))}
-            {calCells.map((cell, i) => (
-              <div
-                key={i}
-                className={`cal-day${cell.otherMonth ? " other-month" : ""}${!cell.otherMonth && cell.day === today ? " today" : ""}`}
-              >
-                {cell.day > 0 && (
-                  <>
-                    <span className="cal-day-num">{cell.day}</span>
-                    {apptDays.has(cell.day) && !cell.otherMonth && cell.day === today && (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 1, width: "100%" }}>
-                        <div className="cal-event" style={{ background: "#dcfce7", color: "#15803d" }}>C-001 08:00</div>
-                        <div className="cal-event" style={{ background: "#dbeafe", color: "#1e40af" }}>C-002 08:30</div>
-                        <div className="cal-event" style={{ background: "#fef3c7", color: "#92400e" }}>+5 más</div>
-                      </div>
-                    )}
-                    {[3, 10, 15, 22].includes(cell.day) && !cell.otherMonth && (
-                      <div className="cal-event" style={{ background: "#e0f7fa", color: "#0e7490" }}>
-                        {cell.day === 3 ? "2 citas" : cell.day === 10 ? "4 citas" : cell.day === 15 ? "3 citas" : "5 citas"}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <IcFilter size={14} style={{ color: "var(--text-muted)" }} />
+            <select className="form-select" style={{ width: 150 }} value={filterMedico} onChange={e => setFilterMedico(e.target.value)}>
+              <option value="">Médico</option>
+              <option value="Dr. Hernández">Dr. Hernández</option>
+              <option value="Dr. Martínez">Dr. Martínez</option>
+              <option value="Dr. López">Dr. López</option>
+            </select>
+            <select className="form-select" style={{ width: 130 }} value={filterArea} onChange={e => setFilterArea(e.target.value)}>
+              <option value="">Área</option>
+              <option value="Medicina General">Medicina General</option>
+              <option value="Pediatría">Pediatría</option>
+              <option value="Ginecología">Ginecología</option>
+            </select>
+            <select className="form-select" style={{ width: 130 }} value={filterEstado} onChange={e => setFilterEstado(e.target.value)}>
+              <option value="">Estado</option>
+              <option value="Pendiente">Pendiente</option>
+              <option value="Confirmada">Confirmada</option>
+              <option value="Atendida">Atendida</option>
+              <option value="Cancelada">Cancelada</option>
+            </select>
+          </div>
+          <div style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--text-muted)" }}>
+            {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
           </div>
         </div>
 
-        {/* Today's appointments */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">Citas del día</span>
-            <span className="badge badge-primary">8 Sep 2026</span>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {filtered.map(a => (
-              <div key={a.id} style={{
-                padding: "10px 12px", borderRadius: 8,
-                border: "1px solid var(--border)",
-                display: "flex", flexDirection: "column", gap: 4,
-                borderLeft: `3px solid ${
-                  a.estado === "Confirmada" ? "var(--success)" :
-                  a.estado === "Atendida" ? "var(--info)" :
-                  a.estado === "Cancelada" ? "var(--danger)" : "var(--warning)"
-                }`,
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span className="mono" style={{ fontWeight: 700, color: "var(--primary)", fontSize: 13 }}>{a.hora}</span>
-                  <StatusBadge estado={a.estado} />
-                </div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>{a.paciente}</div>
-                <div style={{ fontSize: 12, color: "var(--text-muted)" }}>{a.medico}</div>
-                <div style={{ fontSize: 11.5, color: "var(--text-secondary)" }}>{a.area}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Nueva cita modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-title">Nueva cita médica</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-              {[
-                { label: "Paciente", placeholder: "Buscar paciente..." },
-                { label: "Médico", placeholder: "Seleccionar médico" },
-                { label: "Área / Especialidad", placeholder: "Área" },
-                { label: "Fecha", type: "date" },
-                { label: "Hora", type: "time" },
-                { label: "Motivo de consulta", placeholder: "Descripción breve" },
-              ].map((f, i) => (
-                <div className="form-group" key={i} style={i === 5 ? { gridColumn: "1/-1" } : {}}>
-                  <label className="form-label">{f.label}</label>
-                  <input className="form-input" type={f.type || "text"} placeholder={f.placeholder} />
-                </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Paciente</th>
+                <th>Médico</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Área</th>
+                <th>Estado</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(a => (
+                <tr key={a.id}>
+                  <td><span className="mono" style={{ color: "var(--primary)", fontWeight: 600 }}>{a.id}</span></td>
+                  <td style={{ fontWeight: 500 }}>{a.paciente}</td>
+                  <td style={{ color: "var(--text-secondary)" }}>{a.medico}</td>
+                  <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{a.fecha}</td>
+                  <td style={{ fontWeight: 500 }}>{a.hora}</td>
+                  <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{a.area}</td>
+                  <td>
+                    <EstadoCitaBadge estado={a.estado} />
+                  </td>
+                  <td>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <button className="btn-icon" title="Ver"><IcEye /></button>
+                      <button className="btn-icon" title="Editar"><IcEdit /></button>
+                      <button
+                        className="btn-icon"
+                        title="Cancelar"
+                        style={{ color: "var(--danger)" }}
+                        onClick={() => setDeleteModal(a.id)}
+                      >
+                        <IcTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ))}
-            </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
-              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={() => setShowModal(false)}>
-                <IcPlus size={13} /> Crear cita
-              </button>
-            </div>
-          </div>
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: "center", color: "var(--text-muted)", padding: 32 }}>
+                    No se encontraron citas con esos criterios.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
+
+      {/* Pagination */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+          Mostrando {filtered.length} de {appointments.length} citas
+        </div>
+      </div>
     </div>
   );
 }

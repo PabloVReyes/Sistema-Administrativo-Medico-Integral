@@ -1,3 +1,8 @@
+// ⚠️ DEPRECATED: Datos mock obsoletos
+// Este archivo se mantiene solo para compatibilidad hacia atrás.
+// Las páginas ahora consumen datos reales del backend API en http://localhost:3000/api/#
+// Para desarrollo offline o fallback, estos datos pueden usarse.
+
 export const currentUser = {
   name: "Dr. Carlos Ramírez",
   role: "Administrador",
@@ -5,6 +10,7 @@ export const currentUser = {
   avatar: "CR",
 };
 
+// Datos de pacientes - MOCK (solo para fallback sin conexión)
 export const patients = [
   { id: "P-0001", nombre: "María González Hernández", nacimiento: "1985-03-12", sexo: "F", telefono: "228-541-0032", curp: "GOHM850312MVZNRR08", registro: "2024-01-15", estado: "Activo" },
   { id: "P-0002", nombre: "José Luis Martínez Pérez", nacimiento: "1972-07-24", sexo: "M", telefono: "228-332-1194", curp: "MAPJ720724HVZRRS02", registro: "2024-02-03", estado: "Activo" },

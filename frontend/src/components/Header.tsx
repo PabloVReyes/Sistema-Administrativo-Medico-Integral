@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { IcBell, IcChevronDown, IcLogout, IcSettings, IcUsers } from "./Icons";
-import { currentUser } from "../data/mock";
+import { useAuth } from "../store/auth";
 
 interface HeaderProps {
   pageTitle: string;
   breadcrumb?: string[];
+  user?: { name: string; role: string };
   onLogout: () => void;
 }
 
 export default function Header({ pageTitle, breadcrumb, onLogout }: HeaderProps) {
+  const { user, logout: authLogout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -18,6 +20,11 @@ export default function Header({ pageTitle, breadcrumb, onLogout }: HeaderProps)
     { msg: "Respaldo automático completado", time: "hace 2 hrs", type: "success" },
     { msg: "Nuevo usuario bloqueado: mf.orta", time: "hace 3 hrs", type: "info" },
   ];
+
+  const handleLogout = () => {
+    authLogout();
+    onLogout();
+  };
 
   return (
     <div className="header">
@@ -110,13 +117,14 @@ export default function Header({ pageTitle, breadcrumb, onLogout }: HeaderProps)
               display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 12, fontWeight: 700,
             }}>
-              {currentUser.avatar}
+              {user?.name?.charAt(0) || "U"}
             </div>
             <div style={{ textAlign: "left" }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text)", lineHeight: 1.2 }}>
-                {currentUser.name}
+                {user?.name || "Usuario"}
               </div>
-              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{currentUser.role}</div>
+              <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{user?.role || "Rol"}
+              </div>
             </div>
             <IcChevronDown size={14} />
           </button>
@@ -129,8 +137,9 @@ export default function Header({ pageTitle, breadcrumb, onLogout }: HeaderProps)
               width: 200, zIndex: 200,
             }}>
               <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ fontSize: 13, fontWeight: 600 }}>{currentUser.name}</div>
-                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{currentUser.area}</div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{user?.name || "Usuario"}</div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 2 }}>{user?.area || "Área"}
+                </div>
               </div>
               {[
                 { icon: <IcUsers size={14} />, label: "Mi perfil" },
@@ -149,7 +158,7 @@ export default function Header({ pageTitle, breadcrumb, onLogout }: HeaderProps)
               ))}
               <div style={{ borderTop: "1px solid var(--border)" }}>
                 <div
-                  onClick={onLogout}
+                  onClick={handleLogout}
                   style={{
                     display: "flex", alignItems: "center", gap: 8,
                     padding: "9px 16px", cursor: "pointer", color: "var(--danger)",

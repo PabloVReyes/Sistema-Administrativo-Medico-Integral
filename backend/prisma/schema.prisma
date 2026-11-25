@@ -1,56 +1,188 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
+// Prisma schema for SAMI - Sistema Administrativo Médico Integral
+// Arquitectura modular, RBAC completo, historial clínico
+// Relations handled via application code and UserRole junction table
 
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
+// ============================================================
+// DATABASE CONFIGURATION
+// ============================================================
 datasource db {
   provider = "mysql"
 }
 
+// ============================================================
+// CORE MODELS
+// ============================================================
+
 model User {
-  id        Int        @id @default(autoincrement())
-  username  String     @unique
-  password  String
-  active    Boolean    @default(true)
-  roles     UserRole[]
+  id           String      @id @default(uuid())
+  name         String
+  email        String?     @unique
+  username     String      @unique
+  passwordHash String
+  role         Role[]
+  isActive     Boolean     @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  department   Department? @relation(fields: [departmentId], references: [id])
+  departmentId String?
+
+  @@index([username])
+  @@index([isActive])
 }
 
 model Role {
-  id          Int             @id @default(autoincrement())
-  name        String          @unique
+  id          String   @id @default(uuid())
+  name        String   @unique
   description String?
-  users       UserRole[]
-  permissions RolePermission[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  permissions Permission[]
+  user        User?        @relation(fields: [userId], references: [id])
+  userId      String?
+
+  @@index([name])
 }
 
 model Permission {
-  id          Int             @id @default(autoincrement())
-  code        String          @unique
+  id          String   @id @default(uuid())
+  name        String   @unique
+  action      String
+  resource    String
   description String?
-  roles       RolePermission[]
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  role        Role?    @relation(fields: [roleId], references: [id])
+  roleId      String?
 }
+
+model SystemConfig {
+  key         String   @id
+  value       String?
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================================
+// CLÍNIC MODELS
+// ============================================================
+
+model Patient {
+  id                 String    @id @default(uuid())
+  nombre             String
+  apellidos          String?
+  curp               String?   @unique
+  rfc                String?
+  fechaNacimiento    DateTime? // Usar DateTime en lugar de Date
+  sexo               String?
+  telefono           String?
+  email              String?   @unique
+  direccion          String?
+  ciudad             String?
+  codigoPostal       String?
+  emergenciaNombre   String?
+  emergenciaTelefono String?
+  estado             String    @default("Activo")
+  fechaRegistro      DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  clinicalRecords ClinicalRecord[]
+  appointments    Appointment[]
+
+  @@index([curp])
+  @@index([email])
+  @@index([estado])
+}
+
+model ClinicalRecord {
+  id             String   @id @default(uuid())
+  patientId      String
+  medico         String
+  area           String
+  fecha          DateTime
+  motivoConsulta String
+  diagnostico    String?
+  tratamiento    String?
+  notas          String?
+  createdAt      DateTime @default(now())
+  patient        Patient  @relation(fields: [patientId], references: [id])
+}
+
+model Appointment {
+  id            String   @id @default(uuid())
+  patientId     String
+  medico        String
+  area          String
+  fecha         DateTime
+  hora          String
+  estado        String // Pendiente, Confirmada, Atendida, Cancelada
+  motivo        String?
+  observaciones String?
+  createdAt     DateTime @default(now())
+  patient       Patient  @relation(fields: [patientId], references: [id])
+}
+
+model Department {
+  id               String   @id @default(uuid())
+  nombre           String   @unique
+  descripcion      String?
+  codigo           String?
+  esMedico         Boolean  @default(false)
+  esAdministrativo Boolean  @default(false)
+  estado           String   @default("Activo")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  users User[]
+}
+
+model PatientHistory {
+  id          String   @id @default(uuid())
+  patientId   String
+  tipo        String // "consulta", "ingreso", "alta", "transferencia", "nota_clinica"
+  descripcion String
+  usuario     String
+  fecha       DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
+// ============================================================
+// AUDITORÍA Y SEGURIDAD
+// ============================================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  usuarioId String?
+  usuario   String
+  accion    String
+  modulo    String
+  recurso   String?
+  resultado String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([modulo])
+  @@index([resultado])
+  @@index([usuarioId])
+}
+
+// ============================================================
+// JUNCTION TABLE FOR RBAC
+// ============================================================
 
 model UserRole {
-  userId Int
-  roleId Int
-
-  user User @relation(fields: [userId], references: [id])
-  role Role @relation(fields: [roleId], references: [id])
+  userId String
+  roleId String
 
   @@id([userId, roleId])
-}
-
-model RolePermission {
-  roleId       Int
-  permissionId Int
-
-  role       Role       @relation(fields: [roleId], references: [id])
-  permission Permission @relation(fields: [permissionId], references: [id])
-
-  @@id([roleId, permissionId])
 }

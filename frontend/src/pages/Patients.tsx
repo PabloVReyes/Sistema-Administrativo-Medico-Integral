@@ -1,18 +1,82 @@
-import { useState } from "react";
-import { patients } from "../data/mock";
+import { useState, useEffect } from "react";
 import { IcSearch, IcPlus, IcEye, IcEdit, IcTrash, IcClipboard, IcFilter } from "../components/Icons";
+import { getPatientsApi } from "../services/api";
 
 interface PatientsProps {
   onNewPatient: () => void;
-  onViewRecord: () => void;
+  onViewRecord: (id: string) => void;
+}
+
+function StatusBadge({ estado }: { estado: string }) {
+  const map: Record<string, string> = {
+    "Confirmada": "badge-success",
+    "Atendida": "badge-info",
+    "Pendiente": "badge-warning",
+    "Cancelada": "badge-danger",
+  };
+  const className = map[estado] || "badge-muted";
+  return <span className={`badge ${className}`}>{estado}</span>;
+}
+
+function SexoBadge({ sexo }: { sexo: string }) {
+  const map: Record<string, { bg: string; color: string }> = {
+    "F": { bg: "#fce7f3", color: "#9d174d" },
+    "M": { bg: "#dbeafe", color: "#1e40af" },
+  };
+  const style = map[sexo] || { bg: "var(--border-light)", color: "var(--text-muted)" };
+  return <span style={{ display: "inline-block", width: 24, height: 24, borderRadius: 6, textAlign: "center", lineHeight: "24px", fontSize: 11, fontWeight: 700, background: style.bg, color: style.color }}>{sexo}</span>;
 }
 
 export default function Patients({ onNewPatient, onViewRecord }: PatientsProps) {
+  const [patients, setPatients] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [filterSexo, setFilterSexo] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
   const [page, setPage] = useState(1);
   const [deleteModal, setDeleteModal] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Cargar pacientes del API
+    const token = localStorage.getItem("sami_token");
+    if (token) {
+      fetch("http://localhost:3000/api/patients", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.success && data.data) {
+            setPatients(data.data);
+          } else {
+            setPatients([]);
+          }
+          setLoading(false);
+        })
+        .catch(() => {
+          setPatients([]);
+          setLoading(false);
+        });
+    } else {
+      setPatients([]);
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Si no hay token, cargar datos mock iniciales para mostrar algo
+    if (!localStorage.getItem("sami_token")) {
+      // Datos mock temporales mientras no hay autenticación
+      const mockPatients = [
+        { id: "P-001", nombre: "María González Pérez", curp: "GUPM850412MHRSRL04", sexo: "F", telefono: "5551234567", nacimiento: "12/05/1985", registro: "01/01/2024", estado: "Activo" },
+        { id: "P-002", nombre: "Juan Rodríguez López", curp: "ROJJ900620HNRLRC09", sexo: "M", telefono: "5559876543", nacimiento: "23/08/1990", registro: "15/03/2024", estado: "Activo" },
+        { id: "P-003", nombre: "Carlos Martínez Rodríguez", curp: "MARR010105HNRLRC17", sexo: "M", telefono: "5557894561", nacimiento: "01/02/1988", registro: "20/02/2024", estado: "Inactivo" },
+        { id: "P-004", nombre: "Ana Martínez García", curp: "GARM920512MWQRRL08", sexo: "F", telefono: "5556543210", nacimiento: "18/11/1992", registro: "10/01/2024", estado: "Activo" },
+        { id: "P-005", nombre: "Laura Sánchez Torres", curp: "SANL980320HNRLRC23", sexo: "F", telefono: "5553216549", nacimiento: "30/07/1998", registro: "05/04/2024", estado: "Activo" },
+      ];
+      setPatients(mockPatients);
+      setLoading(false);
+    }
+  }, []);
 
   const filtered = patients.filter(p => {
     const q = search.toLowerCase();
@@ -87,14 +151,7 @@ export default function Patients({ onNewPatient, onViewRecord }: PatientsProps) 
                   <td style={{ fontWeight: 500 }}>{p.nombre}</td>
                   <td style={{ color: "var(--text-secondary)" }}>{p.nacimiento}</td>
                   <td>
-                    <span style={{
-                      display: "inline-block", width: 24, height: 24, borderRadius: 6,
-                      textAlign: "center", lineHeight: "24px", fontSize: 11, fontWeight: 700,
-                      background: p.sexo === "F" ? "#fce7f3" : "#dbeafe",
-                      color: p.sexo === "F" ? "#9d174d" : "#1e40af",
-                    }}>
-                      {p.sexo}
-                    </span>
+                    <SexoBadge sexo={p.sexo} />
                   </td>
                   <td className="mono" style={{ fontSize: 12.5 }}>{p.telefono}</td>
                   <td><span className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{p.curp}</span></td>
@@ -108,7 +165,7 @@ export default function Patients({ onNewPatient, onViewRecord }: PatientsProps) 
                     <div style={{ display: "flex", gap: 4 }}>
                       <button className="btn-icon" title="Ver"><IcEye /></button>
                       <button className="btn-icon" title="Editar"><IcEdit /></button>
-                      <button className="btn-icon" title="Ver expediente" onClick={onViewRecord}>
+                      <button className="btn-icon" title="Ver expediente" onClick={() => onViewRecord?.(p.id)}>
                         <IcClipboard />
                       </button>
                       <button

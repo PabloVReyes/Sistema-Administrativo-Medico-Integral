@@ -1,89 +1,148 @@
-import { useState } from "react";
-import { users } from "../data/mock";
-import { IcSearch, IcPlus, IcEdit, IcLock, IcKey, IcFilter } from "../components/Icons";
+import { useState, useEffect } from "react";
+import { IcSearch, IcPlus, IcEdit, IcTrash, IcUsers, IcLockOpen, IcUserX, IcFilter } from "../components/Icons";
+import { getUsersApi, createUserApi, updateUserApi, deleteUserApi } from "../services/api";
 
-function RoleBadge({ rol }: { rol: string }) {
-  const map: Record<string, string> = {
-    "Administrador": "badge-danger",
-    "Médico": "badge-info",
-    "Enfermería": "badge-success",
-    "Recepción": "badge-primary",
-    "Farmacia": "badge-warning",
-    "TI": "badge-muted",
-    "Dirección": "badge-danger",
-  };
-  return <span className={`badge ${map[rol] || "badge-muted"}`}>{rol}</span>;
+interface UsersProps {
+  onNewPatient: () => void;
+  onNewUser: () => void;
+  onViewRecord: () => void;
 }
 
-function EstadoBadge({ estado }: { estado: string }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{
-        width: 8, height: 8, borderRadius: "50%",
-        background: estado === "Activo" ? "var(--success)" : estado === "Bloqueado" ? "var(--danger)" : "var(--text-muted)",
-      }} />
-      <span style={{
-        fontSize: 12.5, fontWeight: 500,
-        color: estado === "Activo" ? "var(--success)" : estado === "Bloqueado" ? "var(--danger)" : "var(--text-muted)",
-      }}>{estado}</span>
-    </div>
-  );
+interface UserTable {
+  id: string;
+  name: string;
+  username: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
 }
 
-export default function Users() {
+export default function Users({ onNewPatient, onNewUser, onViewRecord }: UsersProps) {
+  // FILTROS PRIMEROS - los hooks de React deben estar en orden consistente
+  const [filterRole, setFilterRole] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+
+  const [users, setUsers] = useState<UserTable[]>([]);
   const [search, setSearch] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [blockModal, setBlockModal] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [deleteModal, setDeleteModal] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const filtered = users.filter(u =>
-    u.nombre.toLowerCase().includes(search.toLowerCase()) ||
-    u.usuario.toLowerCase().includes(search.toLowerCase()) ||
-    u.rol.toLowerCase().includes(search.toLowerCase())
-  );
+  // 1. Cargar usuarios del API (o datos mock si no hay token)
+  useEffect(() => {
+    const token = localStorage.getItem("sami_token");
+    console.log("[Usuarios] Token encontrado:", token ? "SÍ" : "NO");
+
+    if (token) {
+      console.log("[Usuarios] Llamando API con token...");
+      fetch("http://localhost:3000/api/users", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => {
+          console.log("[Usuarios] Respuesta API status:", res.status);
+          return res.json();
+        })
+        .then((data) => {
+          console.log("[Usuarios] Datos recibidos del API:", data);
+          if (data && data.success && data.data && Array.isArray(data.data)) {
+            console.log("[Usuarios] estableciendo", data.data.length, "usuarios reales");
+            setUsers(data.data);
+          } else {
+            console.log("[Usuarios] API no retornó datos esperados, usando mock");
+            // Fallback a datos mock si la API no devuelve datos esperados
+            const mockUsers = [
+              { id: "U-001", name: "Administrador del Sistema", username: "admin", role: "Administrador", isActive: true, createdAt: "01/01/2024" },
+              { id: "U-002", name: "Dr. Carlos Hernández", username: "chernandez", role: "Médico", isActive: true, createdAt: "15/03/2024" },
+              { id: "U-003", name: "Enfermera María López", username: "mlopez", role: "Enfermería", isActive: true, createdAt: "20/02/2024" },
+              { id: "U-004", name: "Personal de Recepción", username: "recepcion", role: "Recepción", isActive: true, createdAt: "10/01/2024" },
+              { id: "U-005", name: "Farmacéutico", username: "farmacia", role: "Farmacia", isActive: true, createdAt: "05/04/2024" },
+            ];
+            setUsers(mockUsers);
+          }
+          console.log("[Usuarios] loading setto FALSE");
+          setLoading(false);
+        })
+        .catch((error) => {
+          console.error("[Usuarios] Error en fetch:", error);
+          // Fallback a datos mock en caso de error
+          const mockUsers = [
+            { id: "U-001", name: "Administrador del Sistema", username: "admin", role: "Administrador", isActive: true, createdAt: "01/01/2024" },
+            { id: "U-002", name: "Dr. Carlos Hernández", username: "chernandez", role: "Médico", isActive: true, createdAt: "15/03/2024" },
+          ];
+          console.log("[Usuarios] Error, usando mock fallback");
+          setUsers(mockUsers);
+          setLoading(false);
+        });
+    } else {
+      console.log("[Usuarios] Sin token, usando datos mock inmediatos");
+      // Sin token: cargar datos mock inmediatamente
+      const mockUsers = [
+        { id: "U-001", name: "Administrador del Sistema", username: "admin", role: "Administrador", isActive: true, createdAt: "01/01/2024" },
+        { id: "U-002", name: "Dr. Carlos Hernández", username: "chernandez", role: "Médico", isActive: true, createdAt: "15/03/2024" },
+        { id: "U-003", name: "Enfermera María López", username: "mlopez", role: "Enfermería", isActive: true, createdAt: "20/02/2024" },
+        { id: "U-004", name: "Personal de Recepción", username: "recepcion", role: "Recepción", isActive: true, createdAt: "10/01/2024" },
+        { id: "U-005", name: "Farmacéutico", username: "farmacia", role: "Farmacia", isActive: true, createdAt: "05/04/2024" },
+      ];
+      setUsers(mockUsers);
+      console.log("[Usuarios] loading setto FALSE (sin token)");
+      setLoading(false);
+    }
+  }, []);
+
+  // 2. Computar usuarios filtrados DESPUÉS de tener los estados de filtro
+  const filtered = users.filter(u => {
+    const q = search.toLowerCase();
+    return (
+      (u.name.toLowerCase().includes(q) || u.username.toLowerCase().includes(q)) &&
+      (!filterRole || u.role === filterRole) &&
+      (!filterStatus || (filterStatus === "Activo" && u.isActive) || (filterStatus === "Inactivo" && !u.isActive))
+    );
+  });
 
   return (
     <div>
       <div className="section-header">
         <div>
-          <h1 className="page-title">Usuarios del sistema</h1>
-          <p className="page-subtitle">Gestión de acceso y credenciales</p>
+          <h1 className="page-title">Usuarios</h1>
+          <p className="page-subtitle">{users.length} usuarios registrados en el sistema</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={onNewUser}>
           <IcPlus /> Nuevo usuario
         </button>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
-        {[
-          { label: "Usuarios activos", value: users.filter(u => u.estado === "Activo").length, color: "var(--success)", bg: "var(--success-light)" },
-          { label: "Usuarios bloqueados", value: users.filter(u => u.estado === "Bloqueado").length, color: "var(--danger)", bg: "var(--danger-light)" },
-          { label: "Total de usuarios", value: users.length, color: "var(--primary)", bg: "var(--primary-light)" },
-        ].map((s, i) => (
-          <div key={i} className="card" style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 8, background: s.bg, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <span style={{ fontSize: 18, fontWeight: 800, color: s.color }}>{s.value}</span>
-            </div>
-            <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-secondary)" }}>{s.label}</span>
-          </div>
-        ))}
-      </div>
-
       <div className="card">
-        <div style={{ display: "flex", gap: 10, marginBottom: 16 }}>
+        {/* Toolbar */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
           <div className="search-bar">
             <IcSearch />
-            <input className="search-input" placeholder="Buscar usuarios..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input
+              className="search-input"
+              placeholder="Buscar por nombre o usuario..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
-          <select className="form-select" style={{ width: 160 }}>
-            <option>Todos los roles</option>
-            {["Administrador","Médico","Enfermería","Recepción","Farmacia","TI"].map(r => <option key={r}>{r}</option>)}
-          </select>
-          <select className="form-select" style={{ width: 140 }}>
-            <option>Todos los estados</option>
-            <option>Activo</option>
-            <option>Bloqueado</option>
-          </select>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <IcFilter size={14} style={{ color: "var(--text-muted)" }} />
+            <select className="form-select" style={{ width: 180 }} value={filterRole} onChange={e => setFilterRole(e.target.value)}>
+              <option value="">Rol</option>
+              <option value="Administrador">Administrador</option>
+              <option value="Médico">Médico</option>
+              <option value="Enfermería">Enfermería</option>
+              <option value="Recepción">Recepción</option>
+              <option value="Farmacia">Farmacia</option>
+              <option value="Auditor">Auditor</option>
+            </select>
+            <select className="form-select" style={{ width: 130 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+              <option value="">Estado</option>
+              <option value="Activo">Activo</option>
+              <option value="Inactivo">Inactivo</option>
+            </select>
+          </div>
+          <div style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--text-muted)" }}>
+            {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
+          </div>
         </div>
 
         <div className="table-wrap">
@@ -91,102 +150,70 @@ export default function Users() {
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Nombre</th>
+                <th>Nombre completo</th>
                 <th>Usuario</th>
                 <th>Rol</th>
-                <th>Área</th>
-                <th>Último acceso</th>
                 <th>Estado</th>
+                <th>F. Creación</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map(u => (
                 <tr key={u.id}>
-                  <td><span className="mono" style={{ color: "var(--primary)", fontWeight: 600, fontSize: 12 }}>{u.id}</span></td>
-                  <td style={{ fontWeight: 500 }}>{u.nombre}</td>
-                  <td><span className="mono" style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{u.usuario}</span></td>
-                  <td><RoleBadge rol={u.rol} /></td>
-                  <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{u.area}</td>
-                  <td><span className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{u.ultimo}</span></td>
-                  <td><EstadoBadge estado={u.estado} /></td>
+                  <td><span className="mono" style={{ color: "var(--primary)", fontWeight: 600 }}>{u.id}</span></td>
+                  <td style={{ fontWeight: 500 }}>{u.name}</td>
+                  <td><span className="mono" style={{ fontSize: 11.5, color: "var(--text-muted)" }}>{u.username}</span></td>
+                  <td>
+                    <span style={{
+                      display: "inline-block", padding: "3px 8px", borderRadius: 4,
+                      fontSize: 11, fontWeight: 600,
+                      background: u.role === "Administrador" ? "var(--primary)" : u.role === "Médico" ? "#0891b2" : u.role === "Enfermería" ? "#16a34a" : u.role === "Recepción" ? "#6d28d9" : "#f59e0b",
+                      color: u.role === "Administrador" ? "#fff" : u.role === "Médico" ? "#fff" : u.role === "Enfermería" ? "#fff" : u.role === "Recepción" ? "#fff" : "#fff",
+                    }}>
+                      {u.role}
+                    </span>
+                  </td>
+                  <td>
+                    <span className={`badge ${u.isActive ? "badge-success" : "badge-muted"}`}>
+                      {u.isActive ? "Activo" : "Inactivo"}
+                    </span>
+                  </td>
+                  <td style={{ color: "var(--text-muted)", fontSize: 12.5 }}>{u.createdAt}</td>
                   <td>
                     <div style={{ display: "flex", gap: 4 }}>
+                      <button className="btn-icon" title="Ver"><IcUsers /></button>
                       <button className="btn-icon" title="Editar"><IcEdit /></button>
-                      <button className="btn-icon" title={u.estado === "Bloqueado" ? "Desbloquear" : "Bloquear"}
-                        onClick={() => setBlockModal(u.usuario)}
-                        style={{ color: u.estado === "Bloqueado" ? "var(--success)" : "var(--warning)" }}>
-                        <IcLock />
+                      <button
+                        className="btn-icon"
+                        title="Eliminar"
+                        style={{ color: "var(--danger)" }}
+                        onClick={() => setDeleteModal(u.id)}
+                      >
+                        <IcTrash />
                       </button>
-                      <button className="btn-icon" title="Restablecer contraseña"><IcKey /></button>
                     </div>
                   </td>
                 </tr>
               ))}
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={7} style={{ textAlign: "center", color: "var(--text-muted)", padding: 32 }}>
+                    No se encontraron usuarios con esos criterios.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* New user modal */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-title">Nuevo usuario</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0 14px" }}>
-              {[
-                { label: "Nombre completo" }, { label: "Usuario" },
-                { label: "Correo electrónico", col: "1/-1" as const }, { label: "Contraseña inicial" },
-                { label: "Confirmar contraseña" }, { label: "Rol" }, { label: "Área" },
-              ].map((f, i) => (
-                <div key={i} className="form-group" style={f.col ? { gridColumn: f.col } : {}}>
-                  <label className="form-label">{f.label}</label>
-                  {f.label === "Rol" || f.label === "Área" ? (
-                    <select className="form-select">
-                      <option>Seleccionar...</option>
-                      {f.label === "Rol" && ["Administrador","Médico","Enfermería","Recepción","Farmacia","TI"].map(r => <option key={r}>{r}</option>)}
-                    </select>
-                  ) : (
-                    <input className="form-input" type={f.label.toLowerCase().includes("contraseña") ? "password" : "text"} placeholder={f.label} />
-                  )}
-                </div>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 8 }}>
-              <button className="btn btn-outline" onClick={() => setShowModal(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={() => setShowModal(false)}>Crear usuario</button>
-            </div>
-          </div>
+      {/* Pagination */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 16 }}>
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+          Mostrando {filtered.length} de {users.length} usuarios
         </div>
-      )}
-
-      {/* Block confirm modal */}
-      {blockModal && (
-        <div className="modal-overlay" onClick={() => setBlockModal(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: 380 }}>
-            <div style={{ textAlign: "center" }}>
-              <div style={{
-                width: 52, height: 52, borderRadius: "50%", background: "var(--warning-light)",
-                display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px",
-              }}>
-                <IcLock size={20} style={{ color: "var(--warning)" }} />
-              </div>
-              <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
-                Bloquear usuario
-              </h3>
-              <p style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 20 }}>
-                ¿Desea bloquear al usuario <strong>{blockModal}</strong>? No podrá iniciar sesión hasta que sea desbloqueado.
-              </p>
-              <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
-                <button className="btn btn-outline" onClick={() => setBlockModal(null)}>Cancelar</button>
-                <button className="btn" style={{ background: "var(--warning)", color: "#fff" }} onClick={() => setBlockModal(null)}>
-                  <IcLock size={12} /> Bloquear
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 }

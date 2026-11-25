@@ -1,15 +1,13 @@
 import { useState } from "react";
 import { IcHospital, IcAlert, IcLock } from "../components/Icons";
+import { useAuth } from "../store/auth";
 
-interface LoginProps {
-  onLogin: () => void;
-}
-
-export default function Login({ onLogin }: LoginProps) {
+export default function Login({ onLogin }: { onLogin: (token: string, user: { id: string; username: string; name: string; role: string }) => void }) {
   const [usuario, setUsuario] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,7 +19,14 @@ export default function Login({ onLogin }: LoginProps) {
     setLoading(true);
     setTimeout(() => {
       if (usuario === "admin" && password === "admin123") {
-        onLogin();
+        const user: { id: string; username: string; name: string; role: string } = {
+          id: "1",
+          username: usuario,
+          name: usuario,
+          role: "Administrador",
+        };
+        login("sami-token-demo", user);
+        onLogin("sami-token-demo", user);
       } else {
         setError("Usuario o contraseña incorrectos. Intente nuevamente.");
         setLoading(false);
@@ -34,8 +39,7 @@ export default function Login({ onLogin }: LoginProps) {
       {/* Background pattern */}
       <div style={{
         position: "absolute", inset: 0,
-        backgroundImage: `radial-gradient(circle at 20% 50%, rgba(8,145,178,0.15) 0%, transparent 50%),
-          radial-gradient(circle at 80% 20%, rgba(255,255,255,0.05) 0%, transparent 40%)`,
+        backgroundImage: `radial-gradient(circle at 20% 50%, rgba(8,145,178,0.15) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.05) 0%, transparent 40%)`,
         pointerEvents: "none",
       }} />
 
@@ -121,29 +125,29 @@ export default function Login({ onLogin }: LoginProps) {
                 </span>
               ) : "Iniciar sesión"}
             </button>
-
-            <div style={{ textAlign: "center", marginTop: 14 }}>
-              <span style={{ fontSize: 13, color: "var(--secondary)", cursor: "pointer", fontWeight: 500 }}>
-                ¿Olvidaste tu contraseña?
-              </span>
-            </div>
           </form>
 
-          <div style={{
-            marginTop: 24, padding: "12px 14px",
-            background: "#f8fafc", borderRadius: 8,
-            border: "1px solid var(--border)",
-            display: "flex", alignItems: "flex-start", gap: 8,
-          }}>
-            <IcLock size={14} style={{ flexShrink: 0, marginTop: 1, color: "var(--text-muted)" }} />
-            <p style={{ fontSize: 11.5, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
-              El acceso está restringido a personal autorizado del Hospital General Altotonga. Los intentos de acceso no autorizados son monitoreados y pueden ser reportados.
-            </p>
+          <div style={{ textAlign: "center", marginTop: 14 }}>
+            <span style={{ fontSize: 13, color: "var(--secondary)", cursor: "pointer", fontWeight: 500 }}>
+              ¿Olvidaste tu contraseña?
+            </span>
           </div>
+        </div>
 
-          <div style={{ marginTop: 16, textAlign: "center", fontSize: 11.5, color: "var(--text-muted)" }}>
-            <strong style={{ color: "var(--text-secondary)" }}>Demo:</strong> usuario <code>admin</code> / contraseña <code>admin123</code>
-          </div>
+        <div style={{
+          marginTop: 24, padding: "12px 14px",
+          background: "#f8fafc", borderRadius: 8,
+          border: "1px solid var(--border)",
+          display: "flex", alignItems: "flex-start", gap: 8,
+        }}>
+          <IcLock size={14} style={{ flexShrink: 0, marginTop: 1, color: "var(--text-muted)" }} />
+          <p style={{ fontSize: 11.5, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
+            El acceso está restringido a personal autorizado del Hospital General Altotonga. Los intentos de acceso no autorizados son monitoreados y pueden ser reportados.
+          </p>
+        </div>
+
+        <div style={{ marginTop: 16, textAlign: "center", fontSize: 11.5, color: "var(--text-muted)" }}>
+          <strong style={{ color: "var(--text-secondary)" }}>Demo:</strong> usuario <code>admin</code> / contraseña <code>admin123</code>
         </div>
       </div>
 
